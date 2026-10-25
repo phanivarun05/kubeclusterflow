@@ -26,6 +26,30 @@ type ClusterInformerManager struct {
 	namespace  string
 }
 
+// =====================
+// Unwrap Deleted Object
+// =====================
+
+func UnwrapDeletedObject(obj interface{}) *v1.Pod {
+
+	pod, ok := obj.(*v1.Pod)
+	if ok {
+		return pod
+	}
+
+	// check is it wrapped in  a tombstone.
+	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+	if ok {
+		underlyingObj := tombstone.Obj
+
+		pod, ok := underlyingObj.(*v1.Pod)
+		if ok {
+			return pod
+		}
+	}
+	return nil
+}
+
 // ======================================
 // Constructor for the Informer Manager
 // ======================================
@@ -57,6 +81,30 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *MemoryCacheS
 				cacheStore.mutex.Lock()
 				cacheStore.store[pod.Name] = lineage
 				cacheStore.mutex.Unlock()
+			},
+
+			UpdateFunc: func(oldObj interface{}, newObj interface{}) {
+				newPod, ok := newObj.(*v1.Pod)
+				if !ok {
+					return
+				}
+
+				linege := lineage.ClassifyPodOwnership(newPod)
+
+				cacheStore.mutex.Lock()
+				cacheStore.store[newPod.Name] = linege
+				cacheStore.mutex.Unlock()
+			},
+
+			DeleteFunc: func(obj interface{}) {
+				pod, ok := obj.(*v1.Pod)
+				if !ok {
+					pod = UnwrapDeletedObject(obj)
+				}
+
+				if pod != nil {
+					cacheStore.store[pod.Name] = lineage.PodLineageInfo{}
+				}
 			},
 		},
 	)
