@@ -105,7 +105,9 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *MemoryCacheS
 				}
 
 				if pod != nil {
-					cacheStore.store[pod.Name] = lineage.PodLineageInfo{}
+					cacheStore.mutex.Lock()
+					delete(cacheStore.store, pod.Name)
+					cacheStore.mutex.Unlock()
 				}
 			},
 		},
