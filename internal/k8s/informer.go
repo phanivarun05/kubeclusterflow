@@ -1,6 +1,8 @@
 package k8s
 
 import (
+	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -114,4 +116,31 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *MemoryCacheS
 		cacheStore: cacheStore,
 		namespace:  targetNamespace,
 	}
+}
+
+// ===========================
+// Background Lifecycle Runner
+// ===========================
+
+func (m *ClusterInformerManager) Start(stopCtx context.Context) error {
+
+	// start background goroutines i.e informers to listen to API server
+	m.factory.Start(stopCtx.Done())
+
+	// Block until local cache finishes it's initial API list sync
+	syncedResults := m.factory.WaitForCacheSync(stopCtx.Done())
+
+	for informerType, isSynced := range syncedResults {
+		if !isSynced {
+			return fmt.Errorf("failed to sync informer cache")
+		}
+		_ = informerType
+	}
+
+	fmt.Println("Informer caches synced successfully. Running in Background...")
+
+	<-stopCtx.Done()
+	print("shutting down informers cleanly...")
+
+	return nil
 }
