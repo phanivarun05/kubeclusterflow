@@ -17,6 +17,13 @@ import (
 // ======================
 // Structure Definitions
 // ======================
+
+func NewMemoryCacheStore() *localcache.MemoryCacheStore {
+	return &localcache.MemoryCacheStore{
+		Store: make(map[string]lineage.PodLineageInfo),
+	}
+}
+
 type ClusterInformerManager struct {
 	clientset  kubernetes.Interface
 	factory    informers.SharedInformerFactory
@@ -54,12 +61,23 @@ func UnwrapDeletedObject(obj interface{}) *v1.Pod {
 
 func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.MemoryCacheStore, targetNamespace string) *ClusterInformerManager {
 
+	if cacheStore == nil {
+		cacheStore = NewMemoryCacheStore()
+	}
+
 	// Create an Informer Factory for the specified namespace or all namespaces
 	var factory = informers.NewSharedInformerFactoryWithOptions(
 		k8sClient,
 		30*time.Minute,
 		informers.WithNamespace(targetNamespace),
 	)
+
+	manager := &ClusterInformerManager{
+		clientset:  k8sClient,
+		factory:    factory,
+		cacheStore: cacheStore,
+		namespace:  targetNamespace,
+	}
 
 	// Extarct the specific Pod Informer from the Core v1 API group
 	podInformer := factory.Core().V1().Pods().Informer()
@@ -76,7 +94,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.M
 				lineage := lineage.ClassifyPodOwnership(pod)
 
 				// save to local cache
-				cacheStore.Set(pod.Name, lineage)
+				manager.cacheStore.Set(pod.Name, lineage)
 			},
 
 			UpdateFunc: func(oldObj interface{}, newObj interface{}) {
@@ -87,7 +105,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.M
 
 				linege := lineage.ClassifyPodOwnership(newPod)
 
-				cacheStore.Set(newPod.Name, linege)
+				manager.cacheStore.Set(newPod.Name, linege)
 			},
 
 			DeleteFunc: func(obj interface{}) {
@@ -97,17 +115,12 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.M
 				}
 
 				if pod != nil {
-					cacheStore.Delete(pod.Name)
+					manager.cacheStore.Delete(pod.Name)
 				}
 			},
 		},
 	)
-	return &ClusterInformerManager{
-		clientset:  k8sClient,
-		factory:    factory,
-		cacheStore: cacheStore,
-		namespace:  targetNamespace,
-	}
+	return manager
 }
 
 // ===========================

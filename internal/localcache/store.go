@@ -8,14 +8,7 @@ import (
 
 type MemoryCacheStore struct {
 	mu    sync.RWMutex
-	store map[string]lineage.PodLineageInfo
-}
-
-// constructor
-func NewMemoryCacheStore() *MemoryCacheStore {
-	return &MemoryCacheStore{
-		store: make(map[string]lineage.PodLineageInfo),
-	}
+	Store map[string]lineage.PodLineageInfo
 }
 
 // ------------------------------
@@ -25,7 +18,7 @@ func (c *MemoryCacheStore) Set(podName string, lineageInfo lineage.PodLineageInf
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.store[podName] = lineageInfo
+	c.Store[podName] = lineageInfo
 }
 
 // ---------------------------------
@@ -35,7 +28,7 @@ func (c *MemoryCacheStore) Get(podName string) (lineage.PodLineageInfo, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	info, exists := c.store[podName]
+	info, exists := c.Store[podName]
 	return info, exists
 }
 
@@ -46,7 +39,7 @@ func (c *MemoryCacheStore) Delete(podName string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	delete(c.store, podName)
+	delete(c.Store, podName)
 }
 
 // ----------------------------------
@@ -56,8 +49,8 @@ func (c *MemoryCacheStore) ListAll() []lineage.PodLineageInfo {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	result := make([]lineage.PodLineageInfo, 0, len(c.store))
-	for _, info := range c.store {
+	result := make([]lineage.PodLineageInfo, 0, len(c.Store))
+	for _, info := range c.Store {
 		result = append(result, info)
 	}
 	return result
