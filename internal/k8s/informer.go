@@ -3,10 +3,10 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/phanivarun05/kubeclusterflow/internal/lineage"
+	"github.com/phanivarun05/kubeclusterflow/internal/localcache"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
@@ -17,14 +17,10 @@ import (
 // ======================
 // Structure Definitions
 // ======================
-type MemoryCacheStore struct {
-	mutex sync.RWMutex
-	store map[string]lineage.PodLineageInfo
-}
 type ClusterInformerManager struct {
 	clientset  kubernetes.Interface
 	factory    informers.SharedInformerFactory
-	cacheStore *MemoryCacheStore
+	cacheStore *localcache.MemoryCacheStore
 	namespace  string
 }
 
@@ -56,7 +52,7 @@ func UnwrapDeletedObject(obj interface{}) *v1.Pod {
 // Constructor for the Informer Manager
 // ======================================
 
-func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *MemoryCacheStore, targetNamespace string) *ClusterInformerManager {
+func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.MemoryCacheStore, targetNamespace string) *ClusterInformerManager {
 
 	// Create an Informer Factory for the specified namespace or all namespaces
 	var factory = informers.NewSharedInformerFactoryWithOptions(
@@ -80,9 +76,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *MemoryCacheS
 				lineage := lineage.ClassifyPodOwnership(pod)
 
 				// save to local cache
-				cacheStore.mutex.Lock()
-				cacheStore.store[pod.Name] = lineage
-				cacheStore.mutex.Unlock()
+				cacheStore.Set(pod.Name, lineage)
 			},
 
 			UpdateFunc: func(oldObj interface{}, newObj interface{}) {
@@ -93,9 +87,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *MemoryCacheS
 
 				linege := lineage.ClassifyPodOwnership(newPod)
 
-				cacheStore.mutex.Lock()
-				cacheStore.store[newPod.Name] = linege
-				cacheStore.mutex.Unlock()
+				cacheStore.Set(newPod.Name, linege)
 			},
 
 			DeleteFunc: func(obj interface{}) {
@@ -105,9 +97,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *MemoryCacheS
 				}
 
 				if pod != nil {
-					cacheStore.mutex.Lock()
-					delete(cacheStore.store, pod.Name)
-					cacheStore.mutex.Unlock()
+					cacheStore.Delete(pod.Name)
 				}
 			},
 		},
