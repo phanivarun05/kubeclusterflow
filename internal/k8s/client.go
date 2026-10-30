@@ -59,6 +59,50 @@ func NewK8sClientWrapper(contextName, namespace string) (*K8sClientWrapper, erro
 	}, nil
 }
 
+// List All Contexts
+func ListAllContexts() ([]string, error) {
+
+	//load raw config
+	rawConfig, err := config.LoadRawKubeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load raw kubeconfig: %w", err)
+	}
+
+	var contextNames []string
+	for contextName := range rawConfig.Contexts {
+		contextNames = append(contextNames, contextName)
+	}
+	return contextNames, nil
+}
+
+// Dynamically build the clientset for any requested context on the fly
+func GetClientForContext(contextName string) (kubernetes.Interface, error) {
+	kubeconfigPath := config.GetKubeConfigPath()
+
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	loadingRules.ExplicitPath = kubeconfigPath
+
+	configOverrides := &clientcmd.ConfigOverrides{
+		CurrentContext: contextName,
+	}
+
+	restConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		loadingRules,
+		configOverrides,
+	).ClientConfig()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to build rest config for context %s: %w", contextName, err)
+	}
+
+	clientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create clientset for context %s: %w", contextName, err)
+	}
+
+	return clientSet, nil
+}
+
 // Listing Clusters and Namespaces
 func (w *K8sClientWrapper) ListNamespaces() ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -75,4 +119,29 @@ func (w *K8sClientWrapper) ListNamespaces() ([]string, error) {
 	}
 
 	return names, nil
+}
+
+// List Namespaces for context - Dynamic Namespace Indexing
+func ListNamespacesForContext(contextName string) ([]string, error) {
+
+	// Get temporary client for target context
+	clientSet, err := GetClientForContext(contextName)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	nsList, err := clientSet.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list namespaces of context %s: %w", contextName, err)
+	}
+
+	var namespaceNames []string
+	for _, ns := range nsList.Items {
+		namespaceNames = append(namespaceNames, ns.Name)
+	}
+
+	return namespaceNames, nil
 }
