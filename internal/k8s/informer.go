@@ -21,15 +21,16 @@ import (
 // Constructor for Cache Store
 func NewMemoryCacheStore() *localcache.MemoryCacheStore {
 	return &localcache.MemoryCacheStore{
-		Store: make(map[string]lineage.PodLineageInfo),
+		Store: make(map[string]map[string]map[string]lineage.PodLineageInfo),
 	}
 }
 
 type ClusterInformerManager struct {
-	clientset  kubernetes.Interface
-	factory    informers.SharedInformerFactory
-	cacheStore *localcache.MemoryCacheStore
-	namespace  string
+	clientset   kubernetes.Interface
+	factory     informers.SharedInformerFactory
+	cacheStore  *localcache.MemoryCacheStore
+	namespace   string
+	contextName string
 }
 
 // =====================
@@ -60,7 +61,7 @@ func UnwrapDeletedObject(obj interface{}) *v1.Pod {
 // Constructor for the Informer Manager
 // ======================================
 
-func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.MemoryCacheStore, targetNamespace string) *ClusterInformerManager {
+func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.MemoryCacheStore, clusterContext, targetNamespace string) *ClusterInformerManager {
 
 	if cacheStore == nil {
 		cacheStore = NewMemoryCacheStore()
@@ -74,10 +75,11 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.M
 	)
 
 	manager := &ClusterInformerManager{
-		clientset:  k8sClient,
-		factory:    factory,
-		cacheStore: cacheStore,
-		namespace:  targetNamespace,
+		clientset:   k8sClient,
+		factory:     factory,
+		cacheStore:  cacheStore,
+		namespace:   targetNamespace,
+		contextName: clusterContext,
 	}
 
 	// Extarct the specific Pod Informer from the Core v1 API group
@@ -95,7 +97,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.M
 				lineage := lineage.ClassifyPodOwnership(pod)
 
 				// save to local cache
-				manager.cacheStore.Set(pod.Name, lineage)
+				manager.cacheStore.Set(manager.contextName, pod.Namespace, pod.Name, lineage)
 			},
 
 			UpdateFunc: func(oldObj interface{}, newObj interface{}) {
@@ -106,7 +108,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.M
 
 				linege := lineage.ClassifyPodOwnership(newPod)
 
-				manager.cacheStore.Set(newPod.Name, linege)
+				manager.cacheStore.Set(manager.contextName, newPod.Namespace, newPod.Name, linege)
 			},
 
 			DeleteFunc: func(obj interface{}) {
@@ -116,7 +118,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.M
 				}
 
 				if pod != nil {
-					manager.cacheStore.Delete(pod.Name)
+					manager.cacheStore.Delete(manager.contextName, pod.Namespace, pod.Name)
 				}
 			},
 		},

@@ -4,9 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/phanivarun05/kubeclusterflow/internal/k8s"
 	"github.com/phanivarun05/kubeclusterflow/internal/lineage"
 	"github.com/phanivarun05/kubeclusterflow/internal/localcache"
 )
+
+// Helper func to get query params
+func GET_QUERY_PARAM(r *http.Request, key string) string {
+	return r.URL.Query().Get(key)
+}
 
 // when browser first loads the dashboard, it fetches full initial snapshot of all classified pods
 func HandleGetPodsSnapshot(w http.ResponseWriter, r *http.Request, cacheStore *localcache.MemoryCacheStore) {
@@ -15,12 +21,19 @@ func HandleGetPodsSnapshot(w http.ResponseWriter, r *http.Request, cacheStore *l
 	w.Header().Set("Content-Type", "applicattion/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	targetContext := GET_QUERY_PARAM(r, "context")
+	targetNamespace := GET_QUERY_PARAM(r, "namespace")
+
+	if targetContext == "" {
+		http.Error(w, "Missing 'context' query parameter", http.StatusBadRequest)
+	}
+
 	// retrieve all classified pods instantly from memory cache
-	allPods := cacheStore.ListAll()
+	Pods := cacheStore.ListByNamespace(targetContext, targetNamespace)
 
 	// encode struct slice directly to json response stream
 	encoder := json.NewEncoder(w)
-	err := encoder.Encode(allPods)
+	err := encoder.Encode(Pods)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -71,3 +84,50 @@ func HandleSSEStream(w http.ResponseWriter, r *http.Request, broker *SSEBroker) 
 		}
 	}
 }
+
+// Handle Get Contexts - Returns a list of all available Kubernetes contexts/clusters
+func HandleGetContexts(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Call K8s helper to list contexts
+	contexts, err := k8s.ListAllContexts()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	encoder := json.NewEncoder(w)
+	err = encoder.Encode(contexts)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// HandleGetNamespaces- Returns Namespaces available in  a specific cluster context
+func HandleGetNamespaces(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// extract query params
+	targetContext := GET_QUERY_PARAM(r, "context")
+	if targetContext == "" {
+		http.Error(w, "Missing 'context' query parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch live namespaces
+	namespaces, err := k8s.ListNamespacesForContext(targetContext)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	encoder := json.NewEncoder(w)
+	err = encoder.Encode(namespaces)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+//HandleGetHelmReleases - Lists deployed helm releases for the selected context and namespace
