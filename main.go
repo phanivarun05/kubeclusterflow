@@ -1,16 +1,15 @@
 package main
 
 import (
-	// Add a blank identifier prefix to protect them from your IDE
+	"log/slog"
+	"os"
 
-	"embed"
-
-	_ "helm.sh/helm/v3/pkg/release"
+	"github.com/phanivarun05/kubeclusterflow/cmd"
 )
 
-//go:embed all:ui/dist
-var frontendDist embed.FS
-
 func main() {
-	// Your code here
+	if err := cmd.Execute(); err != nil {
+		slog.Error("command failed", "err", err)
+		os.Exit(1)
+	}
 }

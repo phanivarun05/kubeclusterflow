@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 )
 
 var portFlag string
+var emptyFS embed.FS
 
 // Initialize the constructor for the in-memory cache store
 func NewMemoryCacheStore() *localcache.MemoryCacheStore {
@@ -68,7 +70,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	sseBroker := api.NewSSEBroker()
 
 	// Initialize the HTTP server for the dashboard
-	server := api.NewServer(cacheStore, sseBroker)
+	server := api.NewServer(cacheStore, sseBroker, emptyFS)
 
 	// Handle OS signals for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
