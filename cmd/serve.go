@@ -3,8 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/phanivarun05/kubeclusterflow/internal/api"
@@ -25,7 +27,7 @@ func NewMemoryCacheStore() *localcache.MemoryCacheStore {
 
 // Serve function
 func runServe(cmd *cobra.Command, args []string) error {
-	fmt.Print("Initializing KubeClusterFlow Dashboard...\n")
+	slog.Info("Initializing KubeClusterFlow Dashboard...")
 
 	// Initialize the Hierarchical in-memory cache store
 	cacheStore := NewMemoryCacheStore()
@@ -36,7 +38,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to retrieve Kubernetes contexts: %v", err)
 	}
 
-	fmt.Println("Found ", len(allContexts), "Kubernetes contexts.")
+	slog.Info("Total contexts", "contexts", strconv.Itoa(len(allContexts)))
 
 	// Set up root context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -44,12 +46,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// Loop through every discovered context and start a ClusterInformerManager for each
 	for _, clusterContext := range allContexts {
-		fmt.Println("Starting informer for context: ", clusterContext)
+		slog.Info("Starting informer for context", "context", clusterContext)
 
 		// Get typed clientset for the current context
 		clientSet, err := k8s.GetClientForContext(clusterContext)
 		if err != nil {
-			fmt.Printf("Skipping, Error creating clientset for context %s: %v\n", clusterContext, err)
+			slog.Info("Skipping, Error creating clientset for context", "context", clusterContext, "err", err)
 			continue
 		}
 
@@ -59,7 +61,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		// Start the informer manager in a separate goroutine
 		go func(ctx context.Context, manager *k8s.ClusterInformerManager) {
 			if err := manager.Start(ctx); err != nil {
-				fmt.Printf("Error starting informer for context %s: %v\n", clusterContext, err)
+				slog.Info("Error starting informer for context %s: %v\n", "context", clusterContext, "err", err)
 			}
 		}(ctx, informerManager)
 	}
@@ -76,7 +78,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	go func() {
 		<-sigChan
-		fmt.Println("\nReceived shutdown signal. Stopping informers and server...")
+		slog.Info("Received shutdown signal. Stopping informers and server...")
 		cancel()   // Cancel the root context to stop all informers
 		os.Exit(0) // Exit the application
 	}()
