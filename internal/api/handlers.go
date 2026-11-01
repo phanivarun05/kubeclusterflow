@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/phanivarun05/kubeclusterflow/internal/helm"
 	"github.com/phanivarun05/kubeclusterflow/internal/k8s"
 	"github.com/phanivarun05/kubeclusterflow/internal/lineage"
 	"github.com/phanivarun05/kubeclusterflow/internal/localcache"
@@ -18,7 +19,7 @@ func GET_QUERY_PARAM(r *http.Request, key string) string {
 func HandleGetPodsSnapshot(w http.ResponseWriter, r *http.Request, cacheStore *localcache.MemoryCacheStore) {
 
 	// set headers for json response
-	w.Header().Set("Content-Type", "applicattion/json")
+	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	targetContext := GET_QUERY_PARAM(r, "context")
@@ -130,4 +131,36 @@ func HandleGetNamespaces(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//HandleGetHelmReleases - Lists deployed helm releases for the selected context and namespace
+// HandleGetHelmReleases - Lists deployed helm releases for the selected context and namespace
+func HandleGetHelmReleases(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	targetContext := GET_QUERY_PARAM(r, "context")
+	targetNamespace := GET_QUERY_PARAM(r, "namespace")
+
+	if targetContext == "" {
+		http.Error(w, "Missing 'context' query parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Initialize Helm client for the specified context and namespace
+	helmClient, err := helm.NewHelmClient(targetContext, targetNamespace)
+	if err != nil {
+		http.Error(w, "Failed to initialize Helm client: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// List Helm releases
+	releases, err := helmClient.ListDeployedReleases()
+	if err != nil {
+		http.Error(w, "Failed to list Helm releases: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	encoder := json.NewEncoder(w)
+	err = encoder.Encode(releases)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}

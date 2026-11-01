@@ -11,12 +11,24 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	//"helm.sh/helm/v3/pkg/release"
 )
 
 // Helm Client
 type HelmClient struct {
 	actionConfig *action.Configuration
 	namespace    string
+}
+
+// Struct representing clean metadata for the UI Helm Release card
+type HelmReleaseInfo struct {
+	Name       string
+	Namespace  string
+	Revision   int
+	Status     string
+	Chart      string
+	AppVersion string
+	Updated    string
 }
 
 // Constructor to initialize Helm action configuration linked to client-go
@@ -98,4 +110,52 @@ func (h *HelmClient) DeployOrUpgrade(releaseName, chartPath string, values map[s
 	}
 
 	return nil
+}
+
+// List Deployed Releases - Queries Helm Storege drive for releases in the target namespace/context and returns a list of HelmReleaseInfo structs for the UI
+func (h *HelmClient) ListDeployedReleases() ([]HelmReleaseInfo, error) {
+
+	// Initialize Helm list action client
+	listClient := action.NewList(h.actionConfig)
+
+	// Configure flags
+	listClient.Deployed = true
+	listClient.AllNamespaces = (h.namespace == "" || h.namespace == "all")
+
+	// Run the list action
+	releases, err := listClient.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list releases: %w", err)
+	}
+
+	var releaseList []HelmReleaseInfo
+
+	// Map raw Helm release data to clean struct for UI
+	for _, rel := range releases {
+
+		// Extract chart metadata safely
+		chartName := "unknown"
+		chartVersion := ""
+		appVersion := ""
+
+		if rel.Chart != nil && rel.Chart.Metadata != nil {
+			chartName = rel.Chart.Metadata.Name
+			chartVersion = rel.Chart.Metadata.Version
+			appVersion = rel.Chart.Metadata.AppVersion
+		}
+
+		info := HelmReleaseInfo{
+			Name:       rel.Name,
+			Namespace:  rel.Namespace,
+			Revision:   rel.Version,
+			Status:     rel.Info.Status.String(),
+			Chart:      fmt.Sprintf("%s-%s", chartName, chartVersion),
+			AppVersion: "app" + appVersion,
+			Updated:    rel.Info.LastDeployed.Format("2006-01-02 15:04:05"),
+		}
+
+		releaseList = append(releaseList, info)
+	}
+
+	return releaseList, nil
 }

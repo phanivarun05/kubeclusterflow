@@ -46,6 +46,15 @@ func (s *Server) SetupRoutes() {
 		HandleSSEStream(w, r, s.sseBroker)
 	})
 
+	// Streams Contexts
+	s.router.HandleFunc("GET /api/contexts", HandleGetContexts)
+
+	// Streams Namespaces for a given context
+	s.router.HandleFunc("GET /api/namespaces", HandleGetNamespaces)
+
+	// Streams Helm Releases for a given context and namespace
+	s.router.HandleFunc("GET /api/releases", HandleGetHelmReleases)
+
 	// Static Frontend UI Serving
 	// Using Go's embed package to serve compiled react/vite dashboard build
 	subFS, err := fs.Sub(s.frontendDist, "ui/dist")
