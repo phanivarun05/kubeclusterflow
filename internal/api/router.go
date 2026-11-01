@@ -9,22 +9,23 @@ import (
 	"github.com/phanivarun05/kubeclusterflow/internal/localcache"
 )
 
+//go:embed all:ui/dist
+var frontendDist embed.FS
+
 type Server struct {
-	router       *http.ServeMux
-	cacheStore   *localcache.MemoryCacheStore
-	sseBroker    *SSEBroker
-	frontendDist embed.FS
+	router     *http.ServeMux
+	cacheStore *localcache.MemoryCacheStore
+	sseBroker  *SSEBroker
 }
 
 // constructor: Initializes the server and attatch dependencies
-func NewServer(cacheStore *localcache.MemoryCacheStore, sseBroker *SSEBroker, frontendDist embed.FS) *Server {
+func NewServer(cacheStore *localcache.MemoryCacheStore, sseBroker *SSEBroker) *Server {
 	mux := http.NewServeMux()
 
 	server := &Server{
-		router:       mux,
-		cacheStore:   cacheStore,
-		sseBroker:    sseBroker,
-		frontendDist: frontendDist,
+		router:     mux,
+		cacheStore: cacheStore,
+		sseBroker:  sseBroker,
 	}
 
 	// register all application routes
@@ -57,7 +58,7 @@ func (s *Server) SetupRoutes() {
 
 	// Static Frontend UI Serving
 	// Using Go's embed package to serve compiled react/vite dashboard build
-	subFS, err := fs.Sub(s.frontendDist, "ui/dist")
+	subFS, err := fs.Sub(frontendDist, "ui/dist")
 	if err != nil || hasNoFiles(subFS) {
 		s.router.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "tect/html; charset=utf-8")
