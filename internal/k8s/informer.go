@@ -3,10 +3,12 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/phanivarun05/kubeclusterflow/internal/lineage"
 	"github.com/phanivarun05/kubeclusterflow/internal/localcache"
+	"github.com/phanivarun05/kubeclusterflow/internal/logger"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
@@ -131,7 +133,7 @@ func NewInformerManager(k8sClient kubernetes.Interface, cacheStore *localcache.M
 // ===========================
 
 func (m *ClusterInformerManager) Start(stopCtx context.Context) error {
-
+	logger.InitLogger(slog.LevelInfo)
 	// start background goroutines i.e informers to listen to API server
 	m.factory.Start(stopCtx.Done())
 
@@ -145,10 +147,10 @@ func (m *ClusterInformerManager) Start(stopCtx context.Context) error {
 		_ = informerType
 	}
 
-	fmt.Println("Informer caches synced successfully. Running in Background...")
+	slog.Info("Informer caches synced successfully. Running in Background...")
 
 	<-stopCtx.Done()
-	print("shutting down informers cleanly...")
+	slog.Info("shutting down informers cleanly...")
 
 	return nil
 }

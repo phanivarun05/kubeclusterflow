@@ -4,9 +4,12 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/phanivarun05/kubeclusterflow/internal/localcache"
+	"github.com/phanivarun05/kubeclusterflow/internal/logger"
 )
 
 //go:embed all:ui/dist
@@ -84,7 +87,10 @@ func hasNoFiles(fsys fs.FS) bool {
 
 // Start the server
 func (s *Server) Start(port string) error {
-	print("Starting Real-Time Dashboard Server on port", port)
+	logger.InitLogger(slog.LevelInfo)
+	slog.Info("Starting Real-Time Dashboard Server on port",
+		slog.String("port", port),
+	)
 
 	// Listen and serve using our configured router multiplexer
 	err := http.ListenAndServe(port, s.router)
@@ -93,4 +99,25 @@ func (s *Server) Start(port string) error {
 	}
 
 	return nil
+}
+
+// Structured logging
+func LoggingMiddleWare(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		logger.InitLogger(slog.LevelInfo)
+
+		// call next handler
+		next.ServeHTTP(w, r)
+
+		duraration := time.Since(start)
+
+		slog.Info("handled HTTP request",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("remote_addr", r.RemoteAddr),
+			slog.Duration("duration", duraration),
+		)
+	})
 }
