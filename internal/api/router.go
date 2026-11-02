@@ -56,6 +56,12 @@ func (s *Server) SetupRoutes() {
 	// Streams Helm Releases for a given context and namespace
 	s.router.HandleFunc("GET /api/releases", HandleGetHelmReleases)
 
+	// Kubernetes Liveness and Readiness
+	s.router.HandleFunc("GET /healthz", HandleHealthz)
+	s.router.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		HandleReadyz(w, r, s.cacheStore)
+	})
+
 	// Static Frontend UI Serving
 	// Using Go's embed package to serve compiled react/vite dashboard build
 	subFS, err := fs.Sub(frontendDist, "ui/dist")

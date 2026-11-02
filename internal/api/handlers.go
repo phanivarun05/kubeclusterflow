@@ -164,3 +164,26 @@ func HandleGetHelmReleases(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
+
+// HandleHealthz (Live Probe) - Return 200 OK as long as web server is alive
+func HandleHealthz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status": "alive"}`))
+}
+
+// HandleReadyz (Readiness Probe) - Verifies backend dependencies are initialized to serve
+func HandleReadyz(w http.ResponseWriter, r *http.Request, cacheStore *localcache.MemoryCacheStore) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Check if memory cache is inintialized
+	if cacheStore == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"status": "not ready", "reason": "cache store uninitialized"}`))
+		return
+	}
+
+	// Optional
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status": "ready"}`))
+}
