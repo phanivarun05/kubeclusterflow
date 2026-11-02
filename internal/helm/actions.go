@@ -3,9 +3,11 @@ package helm
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/phanivarun05/kubeclusterflow/config"
+	"github.com/phanivarun05/kubeclusterflow/internal/logger"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -33,7 +35,7 @@ type HelmReleaseInfo struct {
 
 // Constructor to initialize Helm action configuration linked to client-go
 func NewHelmClient(kubeContext string, targetNamespace string) (*HelmClient, error) {
-
+	logger.InitLogger(slog.LevelInfo)
 	// Setup Helm CLI settings
 	envSettings := cli.New()
 	envSettings.KubeConfig = config.GetKubeConfigPath()
@@ -91,7 +93,7 @@ func (h *HelmClient) DeployOrUpgrade(releaseName, chartPath string, values map[s
 			return fmt.Errorf("helm install failed: %w", err)
 		}
 
-		fmt.Print("Successfully installed release: ", rel.Name, " Revision: ", rel.Version)
+		slog.Info("Successfully installed release: ", "Name", rel.Name, " Revision", rel.Version)
 	} else if historyErr == nil {
 
 		// --- Existing Release Upgrade ---
@@ -104,7 +106,7 @@ func (h *HelmClient) DeployOrUpgrade(releaseName, chartPath string, values map[s
 			return fmt.Errorf("helm upgrade failed: %w", err)
 		}
 
-		fmt.Print("Successfully upgraded release: ", rel.Name, " to Revision: ", rel.Version)
+		slog.Info("Successfully upgraded release: ", "Name", rel.Name, " to Revision: ", rel.Version)
 	} else {
 		return fmt.Errorf("failed to check release history: %w", historyErr)
 	}

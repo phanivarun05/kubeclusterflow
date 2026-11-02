@@ -13,6 +13,7 @@ import (
 	"github.com/phanivarun05/kubeclusterflow/internal/k8s"
 	"github.com/phanivarun05/kubeclusterflow/internal/lineage"
 	"github.com/phanivarun05/kubeclusterflow/internal/localcache"
+	"github.com/phanivarun05/kubeclusterflow/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +28,7 @@ func NewMemoryCacheStore() *localcache.MemoryCacheStore {
 
 // Serve function
 func runServe(cmd *cobra.Command, args []string) error {
+	logger.InitLogger(slog.LevelInfo)
 	slog.Info("Initializing KubeClusterFlow Dashboard...")
 
 	// Initialize the Hierarchical in-memory cache store
